@@ -90,8 +90,9 @@ async function searchAddress(page, address) {
   }
 
   // Wait for property page to render
-  await page.waitForTimeout(3000);
-  await page.waitForSelector(".property-attributes, #property-detail", { timeout: 15000 });
+  await page.waitForTimeout(5000);
+  // Verify we're on a property page
+  await page.waitForSelector("#property-detail, .property-grid", { timeout: 20000, state: "attached" });
 }
 
 
