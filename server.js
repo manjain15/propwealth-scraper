@@ -2,7 +2,6 @@ require("dotenv").config();
 const express = require("express");
 const { authMiddleware } = require("./utils/auth");
 const { scrapeProperty, scrapeComparables } = require("./scrapers/corelogic");
-const { scrapeVacancy } = require("./scrapers/sqm");
 const { scrapeStockOnMarket } = require("./scrapers/dsr");
 const { generateSuburbText } = require("./utils/ai-text");
 
@@ -41,20 +40,10 @@ app.post("/api/suburb", async (req, res) => {
   console.log(`📍 Suburb data for: ${suburb} ${state} ${postcode}`);
 
   try {
-    // Step 1: Get DSR stats + SQM vacancy in parallel
-    const [dsrResult, sqmResult] = await Promise.allSettled([
-      scrapeStockOnMarket(suburb, state, postcode),
-      scrapeVacancy(postcode),
-    ]);
+    // Step 1: Get DSR stats
+    const dsrResult = await scrapeStockOnMarket(suburb, state, postcode).catch(err => ({ success: false, error: err.message }));
 
-    const dsr =
-      dsrResult.status === "fulfilled" && dsrResult.value.success
-        ? dsrResult.value.data
-        : {};
-    const sqm =
-      sqmResult.status === "fulfilled" && sqmResult.value.success
-        ? sqmResult.value.data
-        : {};
+    const dsr = dsrResult.success ? dsrResult.data : {};
 
     // Step 2: Generate text with Claude, passing DSR stats as context
     const aiResult = await generateSuburbText(suburb, state, postcode, dsr);
@@ -62,10 +51,8 @@ app.post("/api/suburb", async (req, res) => {
 
     // Log failures
     const errors = [];
-    if (dsrResult.status !== "fulfilled" || !dsrResult.value?.success)
-      errors.push({ source: "dsr", error: dsrResult.reason?.message || dsrResult.value?.error });
-    if (sqmResult.status !== "fulfilled" || !sqmResult.value?.success)
-      errors.push({ source: "sqm", error: sqmResult.reason?.message || sqmResult.value?.error });
+    if (!dsrResult.success)
+      errors.push({ source: "dsr", error: dsrResult.error });
     if (!aiResult.success)
       errors.push({ source: "claude", error: aiResult.error });
 
@@ -93,9 +80,9 @@ app.post("/api/suburb", async (req, res) => {
       auction_clearance_rate: dsr.auction_clearance_rate || "",
       online_search_interest: dsr.online_search_interest || "",
 
-      // Vacancy — SQM primary (per SOP), DSR backup
-      vacancy_rate: sqm.vacancy_rate || dsr.vacancy_rate || "",
-      vacancy_rating: sqm.vacancy_rating || dsr.vacancy_rating || "",
+      // Vacancy — from DSR
+      vacancy_rate: dsr.vacancy_rate || "",
+      vacancy_rating: dsr.vacancy_rating || "",
 
       // Data period
       data_month: dsr.data_month || "",
@@ -174,7 +161,7 @@ app.post("/api/comparables", async (req, res) => {
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`🚀 PropWealth Scraper v2 on port ${PORT}`);
-  console.log(`   Suburb: DSR API (~100ms) + Claude (~3s) + SQM (~10s)`);
+  console.log(`   Suburb: DSR API (~100ms) + Claude (~3s)`);
   console.log(`   Property: CoreLogic Playwright (~15s)`);
   console.log(`   Comparables: CoreLogic Playwright (~5s each)`);
 });
