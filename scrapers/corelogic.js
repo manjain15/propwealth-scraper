@@ -35,7 +35,30 @@ async function loginToCoreLogic(page) {
 
   // Wait for redirect back to rpp.corelogic.com.au
   await page.waitForURL("**/rpp.corelogic.com.au/**", { timeout: 30000 });
-  await page.waitForTimeout(2000);
+  await page.waitForTimeout(5000);
+
+  // Dismiss any popups, modals, cookie banners
+  try {
+    const dismissSelectors = [
+      'button[aria-label="Close"]',
+      'button[aria-label="close"]',
+      '.modal-close',
+      '.close-button',
+      'button:has-text("Accept")',
+      'button:has-text("OK")',
+      'button:has-text("Got it")',
+      'button:has-text("Dismiss")',
+    ];
+    for (const sel of dismissSelectors) {
+      const btn = await page.$(sel);
+      if (btn) {
+        await btn.click();
+        await page.waitForTimeout(500);
+      }
+    }
+  } catch (e) {
+    // No popups to dismiss — fine
+  }
 
   console.log("CoreLogic post-login URL:", page.url());
   return page;
@@ -46,7 +69,12 @@ async function loginToCoreLogic(page) {
  * Search for an address and navigate to the property page.
  */
 async function searchAddress(page, address) {
-  await page.waitForSelector("input#crux-multi-locality-search", { timeout: 15000 });
+  await page.waitForSelector("input#crux-multi-locality-search", { timeout: 30000 });
+  
+  // Click on the page body first to dismiss any overlays
+  await page.click("body");
+  await page.waitForTimeout(500);
+  
   await page.click("input#crux-multi-locality-search");
   await page.fill("input#crux-multi-locality-search", address);
   await page.waitForTimeout(2000);
