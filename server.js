@@ -159,28 +159,16 @@ app.post("/api/property", async (req, res) => {
 // ══════════════════════════════════════════════
 // COMPARABLES ENDPOINT (only when provided)
 // ══════════════════════════════════════════════
-// CoreLogic → search each address → extract sold data
+// Domain → search each address → extract sold data
 //
-app.post("/api/comparables", async (req, res) => {
-  const { addresses } = req.body;
 
-  if (!addresses || !Array.isArray(addresses) || addresses.length === 0) {
-    return res.status(400).json({
-      success: false,
-      error: "Missing required field: addresses (array)",
-    });
-  }
+var { scrapeDomainComparables } = require("./utils/domain-comparables");
 
-  console.log(`📊 Scraping ${addresses.length} comparables`);
-
-  try {
-    const result = await scrapeComparables(addresses);
-    console.log(`✅ Comparables done`);
-    res.json(result);
-  } catch (err) {
-    console.error("❌ Comparables endpoint error:", err);
-    res.status(500).json({ success: false, error: err.message });
-  }
+app.post("/api/domain-comparables", async (req, res) => {
+  var { addresses } = req.body;
+  if (!addresses || !addresses.length) return res.status(400).json({ error: "Missing: addresses" });
+  var result = await scrapeDomainComparables(addresses);
+  res.json(result);
 });
 
 
