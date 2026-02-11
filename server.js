@@ -4,6 +4,7 @@ const { authMiddleware } = require("./utils/auth");
 const { scrapeProperty, scrapeComparables } = require("./scrapers/corelogic");
 const { scrapeStockOnMarket } = require("./scrapers/dsr");
 const { generateSuburbText } = require("./utils/ai-text");
+const {scrapeSqmVacancy} = require("./utils/sqm-vacancy");
 
 const app = express();
 app.use(express.json({ limit: "5mb" }));
@@ -28,7 +29,7 @@ app.get("/health", (req, res) => {
 // No CoreLogic Playwright needed for suburb data anymore.
 //
 app.post("/api/suburb", async (req, res) => {
-  const { suburb, state, postcode } = req.body;
+  const { suburb, state, postcode, skipAiText } = req.body;
 
   if (!suburb || !state || !postcode) {
     return res.status(400).json({
@@ -45,8 +46,19 @@ app.post("/api/suburb", async (req, res) => {
 
     const dsr = dsrResult.success ? dsrResult.data : {};
 
-    // Step 2: Generate text with Claude, passing DSR stats as context
-    const aiResult = await generateSuburbText(suburb, state, postcode, dsr);
+    // Step 2: ─ AI Text (skip if reusing cached suburb report) ──
+    let aiResult = { success: true, data: {} };  // <-- DEFAULT to empty
+    if (!skipAiText) {
+      console.log(`   🤖 Generating AI text for ${suburb}...`);
+      aiResult = await generateSuburbText(suburb, state, postcode, dsr);
+      if (!aiResult.success) {
+        console.log(`   ⚠️ AI text generation failed: ${aiResult.error}`);
+        aiResult = { success: true, data: {} }; // fallback to empty
+      }
+    } else {
+      console.log(`   ⏩ Skipping AI text generation (suburb report being reused)`);
+    }
+
     const ai = aiResult.success ? aiResult.data : {};
 
     // Log failures
@@ -58,12 +70,26 @@ app.post("/api/suburb", async (req, res) => {
 
     if (errors.length > 0) console.warn("⚠️ Some sources failed:", errors);
 
+    // ── SQM Research vacancy rate (more accurate than DSR) ──
+    let sqmVacancy = null;
+    try {
+      const sqmResult = await scrapeSqmVacancy(postcode);
+      if (sqmResult.success && sqmResult.data?.vacancy_rate) {
+        sqmVacancy = sqmResult.data;
+        console.log(`   ✅ SQM vacancy: ${sqmVacancy.vacancy_rate} (${sqmVacancy.period || "latest"})`);
+      }
+    } catch (err) {
+      console.log(`   ⚠️ SQM vacancy fetch failed: ${err.message}`);
+    }
+
     // ── COMBINE ──
     const combined = {
       // Text — from Claude (grounded with DSR stats)
+      city_name: ai.city_name || "",
       suburb_overview: ai.suburb_overview || "",
-      highlights: ai.highlights || "",
+      highlights: ai.highlights || [],
       future_prospects: ai.future_prospects || "",
+      suburb_demographics: ai.suburb_demographics || "",
 
       // Numbers — from DSR API
       stock_on_market: dsr.stock_on_market || "",
@@ -81,7 +107,9 @@ app.post("/api/suburb", async (req, res) => {
       online_search_interest: dsr.online_search_interest || "",
 
       // Vacancy — from DSR
-      vacancy_rate: dsr.vacancy_rate || "",
+      vacancy_rate: sqmVacancy?.vacancy_rate || dsr.vacancy_rate || "",
+      vacancy_source: sqmVacancy ? "SQM Research" : "DSR Data",
+      vacancy_period: sqmVacancy?.period || "",
       vacancy_rating: dsr.vacancy_rating || "",
 
       // Data period
