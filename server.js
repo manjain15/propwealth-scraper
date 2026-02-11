@@ -171,6 +171,21 @@ app.post("/api/domain-comparables", async (req, res) => {
   res.json(result);
 });
 
+app.post("/api/comparables", async (req, res) => {
+  const { addresses } = req.body;
+  if (!addresses || !addresses.length) {
+    return res.status(400).json({ success: false, error: "Missing: addresses" });
+  }
+  console.log(`🔍 CoreLogic comparables for ${addresses.length} address(es)`);
+  try {
+    const result = await scrapeComparables(addresses);
+    res.json(result);
+  } catch (err) {
+    console.error("❌ Comparables error:", err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 
 // ─── START ───
 const PORT = process.env.PORT || 3000;

@@ -35,7 +35,31 @@ async function loginToCoreLogic(page) {
 
   // Wait for redirect back to rpp.corelogic.com.au
   await page.waitForURL("**/rpp.corelogic.com.au/**", { timeout: 30000 });
-  await page.waitForTimeout(5000);
+  await page.waitForTimeout(3000);
+
+  // ── Handle interstitials (T&C, linked-accounts, etc.) ──
+  // If we didn't land on the dashboard, force navigate there
+  const postLoginUrl = page.url();
+  if (!postLoginUrl.endsWith("corelogic.com.au/") && !postLoginUrl.includes("/property")) {
+    console.log("   ⚠️ Interstitial detected:", postLoginUrl);
+
+    // Try accepting any T&C first
+    try {
+      const acceptBtn = await page.$('button:has-text("Accept"), button:has-text("Agree"), button:has-text("Continue"), a:has-text("Accept"), a:has-text("Continue")');
+      if (acceptBtn) {
+        await acceptBtn.click();
+        console.log("   ✅ Clicked accept/continue");
+        await page.waitForTimeout(3000);
+      }
+    } catch (e) {}
+
+    // If still not on dashboard, navigate directly
+    if (!page.url().endsWith("corelogic.com.au/")) {
+      console.log("   🔄 Navigating directly to dashboard...");
+      await page.goto("https://rpp.corelogic.com.au/", { waitUntil: "domcontentloaded" });
+      await page.waitForTimeout(5000);
+    }
+  }
 
   // Dismiss any popups, modals, cookie banners
   try {
@@ -56,14 +80,11 @@ async function loginToCoreLogic(page) {
         await page.waitForTimeout(500);
       }
     }
-  } catch (e) {
-    // No popups to dismiss — fine
-  }
+  } catch (e) {}
 
   console.log("CoreLogic post-login URL:", page.url());
   return page;
 }
-
 
 /**
  * Search for an address and navigate to the property page.
