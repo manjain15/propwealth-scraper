@@ -85,6 +85,7 @@ app.post("/api/suburb", async (req, res) => {
     const combined = {
       // Text — from Claude (grounded with DSR stats)
       city_name: ai.city_name || "",
+      city_overview: ai.city_overview || "",
       suburb_overview: ai.suburb_overview || "",
       highlights: ai.highlights || [],
       future_prospects: ai.future_prospects || "",

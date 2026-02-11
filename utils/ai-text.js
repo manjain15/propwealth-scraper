@@ -2,7 +2,8 @@
 // AI Text Generation for Suburb Reports
 //
 // Uses Anthropic Claude API to generate:
-//   - Suburb overview / description (city-level)
+//   - City/LGA overview (about the local government area)
+//   - Suburb overview (about the specific suburb)
 //   - Highlights (array of key selling points)
 //   - Future prospects
 //   - Suburb demographics paragraph (ABS census-style)
@@ -36,15 +37,18 @@ Use the following real market data to inform your writing. You may reference the
 
 ${statsContext}
 
-Generate the following sections in JSON format. Write in a professional, informative tone suitable for property investors. Be specific to this suburb — mention local features, transport links, lifestyle amenities, and demographics where relevant.
+Generate the following sections in JSON format. Write in a professional, informative tone suitable for property investors. Be specific — mention local features, transport links, lifestyle amenities, and demographics where relevant.
+
+IMPORTANT: The "city_overview" must be about the LOCAL GOVERNMENT AREA (LGA) / council area, NOT the suburb itself. For example, if the suburb is Kellyville, the city_overview should be about The Hills Shire as a whole. If the suburb is Cranbourne East, the city_overview should be about the City of Casey. The suburb_overview should then be specifically about the suburb within that LGA.
 
 Return ONLY valid JSON with no markdown fences or explanation:
 
 {
   "city_name": "The local government area (LGA) or city/council area that this suburb falls under. For example, Cranbourne East is in 'Casey', Kellyville is in 'The Hills Shire', Gosnells is in 'Gosnells'. Use the official LGA name.",
-  "suburb_overview": "3-5 paragraphs covering: (1) location relative to CBD and local government area, (2) history and settlement, (3) geography and climate, (4) lifestyle and amenities, (5) local economy and employment. Around 250-350 words total. Each paragraph should be separated by a double newline.",
-  "highlights": ["An array of 4-5 key highlights or notable features of the suburb, e.g. 'Canning River', 'Ellis Brook Valley Reserve', 'Gosnells Railway Markets'. These should be notable landmarks, attractions, natural features, or community assets — short names only, not full sentences."],
-  "future_prospects": "1-2 paragraphs on future growth prospects referencing infrastructure projects, transport upgrades, population trends, urban renewal, and market dynamics. Around 100-150 words.",
+  "city_overview": "3-5 paragraphs about the LOCAL GOVERNMENT AREA (LGA), NOT the suburb. Cover: (1) the LGA's location and geographic extent within the greater metro area, (2) the LGA's history and development as a region, (3) key economic drivers and employment hubs across the LGA, (4) major infrastructure, transport networks and amenities serving the LGA, (5) the LGA's reputation, lifestyle appeal and demographic character as a whole. Around 250-350 words total. Each paragraph should be separated by a double newline. For example, if writing about Kellyville, this section should be about The Hills Shire — its councils, major town centres, transport corridors, regional parks, and overall character — not specifically about Kellyville.",
+  "highlights": ["An array of 4-5 key highlights or notable features of the SUBURB (not the LGA), e.g. 'Canning River', 'Ellis Brook Valley Reserve', 'Gosnells Railway Markets'. These should be notable landmarks, attractions, natural features, or community assets — short names only, not full sentences."],
+  "suburb_overview": "3-5 paragraphs specifically about the SUBURB (not the LGA). Cover: (1) the suburb's specific location and boundaries within the LGA, (2) the suburb's history and how it developed, (3) geography, terrain and climate specific to the suburb, (4) lifestyle amenities, schools, parks, and shopping within or very near the suburb, (5) local economy and employment relevant to suburban residents. Around 250-350 words total. Each paragraph should be separated by a double newline.",
+  "future_prospects": "1-2 paragraphs on future growth prospects for the SUBURB, referencing infrastructure projects, transport upgrades, population trends, urban renewal, and market dynamics. Around 100-150 words.",
   "suburb_demographics": "A single dense paragraph with ABS census-style demographic data about the suburb. Include approximate area in square kilometres, number of parks and percentage of green space, population figures from 2016 and 2021 censuses with growth percentage, predominant age group, household composition (e.g. couples with children), typical monthly mortgage repayment range, predominant occupation type, and owner-occupier vs renter percentages if available. Write it as flowing prose, not bullet points. Around 80-120 words. Example style: 'The size of Cranbourne East is approximately 13.4 square kilometres. It has 35 parks covering nearly 9.1% of total area. The population of Cranbourne East in 2016 was 16195 people. By 2021 the population was 24679 showing a population growth of 52.4% in the area during that time...'"
 }`;
 
@@ -58,7 +62,7 @@ Return ONLY valid JSON with no markdown fences or explanation:
       },
       body: JSON.stringify({
         model: "claude-sonnet-4-20250514",
-        max_tokens: 2048,
+        max_tokens: 3000,
         messages: [{ role: "user", content: prompt }],
       }),
     });
@@ -84,6 +88,7 @@ Return ONLY valid JSON with no markdown fences or explanation:
       success: true,
       data: {
         city_name: parsed.city_name || "",
+        city_overview: parsed.city_overview || "",
         suburb_overview: parsed.suburb_overview || "",
         highlights: parsed.highlights || [],
         future_prospects: parsed.future_prospects || "",
